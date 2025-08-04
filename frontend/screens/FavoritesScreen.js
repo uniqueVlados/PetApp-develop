@@ -27,15 +27,30 @@ export default function FavoritesScreen({ navigation }) {
     }
   };
 
-  const toggleFavorite = async (offerId) => {
+  const toggleFavorite = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      await axios.delete(`${API_URL}/favorites/${offerId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setFavorites(favorites.filter(fav => fav.id !== offerId));
+      setIsFavorite(prevState => !prevState); // Оптимистичное обновление UI
+
+      if (!isFavorite) {
+        await axios.post(`${API_URL}/favorites/`, { offer_id: offerId }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await axios.delete(`${API_URL}/favorites/${offerId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+
+      setOffer(prevOffer => ({
+        ...prevOffer,
+        is_favorite: !isFavorite
+      }));
+
     } catch (error) {
-      console.error('Error removing favorite:', error);
+      console.error('Error toggling favorite:', error);
+      setIsFavorite(prevState => !prevState); // Откатываем изменение в случае ошибки
+      Alert.alert('Ошибка', 'Не удалось изменить статус избранного');
     }
   };
 

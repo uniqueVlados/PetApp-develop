@@ -23,20 +23,24 @@ class OfferBase(BaseModel):
     description: str
     price: float
     image_url: Optional[str] = None
-    is_active: bool = True  # Добавляем поле is_active со значением по умолчанию True
 
-class OfferCreate(BaseModel):
-    title: str
-    description: str
-    price: float
-    image_url: Optional[str] = None
-    is_active: Optional[bool] = True
+class OfferCreate(OfferBase):
+    pass
+
+class OfferOut(OfferBase):
+    id: int
+    owner_id: int
+    created_at: datetime
+    is_active: bool
+    is_favorite: bool = False
+
+    class Config:
+        orm_mode = True
 
 class Offer(OfferBase):
     id: int
     owner_id: int
     created_at: datetime
-    is_favorite: Optional[bool] = False  # Добавляем поле is_favorite
 
     class Config:
         orm_mode = True
@@ -46,6 +50,13 @@ class OfferDetail(Offer):
 
     class Config:
         orm_mode = True
+
+class OfferUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    image_url: Optional[str] = None
+    is_active: Optional[bool] = None
         
 class FavoriteCreate(BaseModel):
     offer_id: int
@@ -67,12 +78,6 @@ class UserUpdate(BaseModel):
 class ChangePassword(BaseModel):
     old_password: str
     new_password: str
-
-class OfferUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    image_url: Optional[str] = None
 
 class ChatBase(BaseModel):
     user1_id: int

@@ -1,12 +1,12 @@
+
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image, Alert, Dimensions, SafeAreaView, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../ThemeContext';
 import { API_URL } from '../config';
 import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const itemWidth = (width - 30) / 2;
@@ -23,11 +23,12 @@ export default function OffersScreen({ navigation }) {
       const token = await AsyncStorage.getItem('token');
       const response = await axios.get(`${API_URL}/offers`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { favorites_only: showFavorites }
+        params: { favorites_only: showFavorites, exclude_own: true }
       });
       setOffers(response.data);
     } catch (error) {
-      console.error('Error fetching offers:', error);
+      console.error('Error fetching offers:', error.response || error);
+      Alert.alert('Ошибка', 'Не удалось загрузить объявления');
     } finally {
       setLoading(false);
     }
@@ -43,19 +44,28 @@ export default function OffersScreen({ navigation }) {
     try {
       const token = await AsyncStorage.getItem('token');
       const offer = offers.find(o => o.id === offerId);
-      if (offer.is_favorite) {
-        await axios.delete(`${API_URL}/favorites/${offerId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } else {
+      const newFavoriteState = !offer.is_favorite;
+
+      if (newFavoriteState) {
         await axios.post(`${API_URL}/favorites/`, { offer_id: offerId }, {
           headers: { Authorization: `Bearer ${token}` }
         });
+      } else {
+        await axios.delete(`${API_URL}/favorites/${offerId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
       }
+
       // Обновляем состояние локально
-      setOffers(offers.map(o => o.id === offerId ? {...o, is_favorite: !o.is_favorite} : o));
+      setOffers(prevOffers => 
+        prevOffers.map(o => 
+          o.id === offerId ? { ...o, is_favorite: newFavoriteState } : o
+        )
+      );
+
     } catch (error) {
       console.error('Error toggling favorite:', error);
+      Alert.alert('Ошибка', 'Не удалось изменить статус избранного');
     }
   };
 

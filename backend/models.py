@@ -1,5 +1,5 @@
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime, timezone
@@ -34,6 +34,7 @@ class Offer(Base):
     chats = relationship("Chat", back_populates="offer")
     favorited_by = relationship("Favorite", back_populates="offer")
 
+
 class Favorite(Base):
     __tablename__ = "favorites"
 
@@ -43,6 +44,8 @@ class Favorite(Base):
 
     user = relationship("User", back_populates="favorites")
     offer = relationship("Offer", back_populates="favorited_by")
+
+    __table_args__ = (UniqueConstraint('user_id', 'offer_id', name='_user_offer_uc'),)
 
 class Chat(Base):
     __tablename__ = "chats"

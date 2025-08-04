@@ -26,32 +26,55 @@ async def create_offer(
     db.refresh(db_offer)
     return db_offer
 
-@router.get("", response_model=List[schemas.Offer])
-def read_offers(
+@router.get("", response_model=List[schemas.OfferOut])
+async def read_offers(
     skip: int = 0,
     limit: int = 100,
-    favorites_only: bool = Query(False),
+    favorites_only: bool = False,
+    exclude_own: bool = False,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user)
 ):
-    query = db.query(models.Offer).filter(models.Offer.is_active == True)
-    
+    query = db.query(models.Offer)
     if favorites_only:
         query = query.join(models.Favorite).filter(models.Favorite.user_id == current_user.id)
-    else:
-        # Исключаем предложения текущего пользователя
+    if exclude_own:
         query = query.filter(models.Offer.owner_id != current_user.id)
     
-    offers = query.order_by(models.Offer.created_at.desc()).offset(skip).limit(limit).all()
+    offers = query.offset(skip).limit(limit).all()
     
-    # Добавляем информацию о том, является ли предложение избранным
+    # Получаем ID избранных объявлений для текущего пользователя
+    favorite_offer_ids = set(db.query(models.Favorite.offer_id)
+                             .filter(models.Favorite.user_id == current_user.id)
+                             .all())
+    favorite_offer_ids = {id for (id,) in favorite_offer_ids}
+    
+    # Преобразуем объекты Offer в OfferOut и добавляем информацию о избранном
+    offer_out_list = []
     for offer in offers:
-        offer.is_favorite = db.query(models.Favorite).filter(
-            models.Favorite.user_id == current_user.id,
-            models.Favorite.offer_id == offer.id
-        ).first() is not None
+        offer_dict = offer.__dict__.copy()
+        offer_dict['is_favorite'] = offer.id in favorite_offer_ids
+        offer_out_list.append(schemas.OfferOut(**offer_dict))
     
-    return offers
+    return offer_out_list
+
+@router.get("/{offer_id}", response_model=schemas.OfferOut)
+async def read_offer(
+    offer_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    offer = db.query(models.Offer).filter(models.Offer.id == offer_id).first()
+    if offer is None:
+        raise HTTPException(status_code=404, detail="Offer not found")
+    
+    # Добавляем информацию о том, является ли предложение избранным для текущего пользователя
+    offer.is_favorite = db.query(models.Favorite).filter(
+        models.Favorite.user_id == current_user.id,
+        models.Favorite.offer_id == offer.id
+    ).first() is not None
+    
+    return offer
 
 @router.get("/my", response_model=List[schemas.Offer])
 async def get_my_offers(
@@ -73,7 +96,7 @@ async def get_offer(
         raise HTTPException(status_code=404, detail="Offer not found")
     return offer
 
-@router.put("/{offer_id}", response_model=schemas.Offer)
+@router.put("/{offer_id}", response_model=schemas.OfferOut)
 async def update_offer(
     offer_id: int,
     offer: schemas.OfferUpdate,

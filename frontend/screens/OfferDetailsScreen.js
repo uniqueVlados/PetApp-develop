@@ -1,16 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  TextInput, 
-  Alert, 
-  ScrollView, 
-  Image, 
-  Dimensions,
-  SafeAreaView
-} from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, Image, Dimensions, SafeAreaView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../ThemeContext';
@@ -36,13 +25,15 @@ export default function OfferDetailsScreen({ route, navigation }) {
       const userId = await AsyncStorage.getItem('userId');
       setCurrentUserId(userId);
       console.log('Fetching offer details for offerId:', offerId);
-      const response = await axios.get(`${API_URL}/offers/${offerId}`, {
+
+      const offerResponse = await axios.get(`${API_URL}/offers/${offerId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('Offer details response:', response.data);
-      setOffer(response.data);
-      setIsFavorite(response.data.is_favorite);
-      setIsCurrentUserOwner(response.data.owner_id === parseInt(userId));
+      console.log('Offer details response:', offerResponse.data);
+      setOffer(offerResponse.data);
+      setIsCurrentUserOwner(offerResponse.data.owner_id === parseInt(userId));
+      setIsFavorite(offerResponse.data.is_favorite);
+
     } catch (error) {
       console.error('Error fetching offer details:', error);
       Alert.alert('Ошибка', 'Не удалось загрузить детали объявления');
@@ -72,22 +63,27 @@ export default function OfferDetailsScreen({ route, navigation }) {
   const toggleFavorite = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      console.log('Current isFavorite state:', isFavorite);
-      if (isFavorite) {
-        console.log('Removing from favorites');
-        await axios.delete(`${API_URL}/favorites/${offerId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } else {
-        console.log('Adding to favorites');
+      const newFavoriteState = !isFavorite;
+      setIsFavorite(newFavoriteState); // Оптимистичное обновление UI
+
+      if (newFavoriteState) {
         await axios.post(`${API_URL}/favorites/`, { offer_id: offerId }, {
           headers: { Authorization: `Bearer ${token}` }
         });
+      } else {
+        await axios.delete(`${API_URL}/favorites/${offerId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
       }
-      setIsFavorite(!isFavorite);
-      console.log('New isFavorite state:', !isFavorite);
+
+      console.log(`Offer ${offerId} favorite status updated to ${newFavoriteState}`);
+      
+      // Обновляем данные с сервера после изменения
+      fetchOfferDetails();
+
     } catch (error) {
       console.error('Error toggling favorite:', error);
+      setIsFavorite(!newFavoriteState); // Откатываем изменение в случае ошибки
       Alert.alert('Ошибка', 'Не удалось изменить статус избранного');
     }
   };
