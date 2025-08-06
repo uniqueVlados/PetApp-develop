@@ -25,6 +25,12 @@ export default function MyOffersScreen({ navigation }) {
     getUserId();
   }, []);
 
+  useFocusEffect(
+  React.useCallback(() => {
+    fetchOffers();
+  }, [])
+);
+
   const fetchOffers = useCallback(async () => {
     if (!currentUserId) return;
     try {
@@ -95,27 +101,27 @@ export default function MyOffersScreen({ navigation }) {
   };
 
   const renderOfferItem = ({ item }) => (
+  <TouchableOpacity 
+    style={[styles.offerItem, isDarkMode && styles.darkOfferItem]}
+    onPress={() => navigation.navigate('OfferDetails', { offerId: item.id })}
+  >
+    <Image source={{ uri: item.image_url || 'https://via.placeholder.com/150' }} style={styles.offerImage} />
+    <View style={styles.offerInfo}>
+      <Text style={[styles.offerTitle, isDarkMode && styles.darkText]} numberOfLines={2}>{item.title}</Text>
+      <Text style={[styles.offerPrice, isDarkMode && styles.darkText]}>{item.price} ₽</Text>
+    </View>
     <TouchableOpacity 
-      style={[styles.offerItem, isDarkMode && styles.darkOfferItem]}
-      onPress={() => navigation.navigate('OfferDetails', { offerId: item.id })}
+      style={styles.editButton} 
+      onPress={() => navigation.navigate('EditOffer', { offerId: item.id })}
     >
-      <Image source={{ uri: item.image_url || 'https://via.placeholder.com/150' }} style={styles.offerImage} />
-      <View style={styles.offerInfo}>
-        <Text style={[styles.offerTitle, isDarkMode && styles.darkText]} numberOfLines={2}>{item.title}</Text>
-        <Text style={[styles.offerPrice, isDarkMode && styles.darkText]}>{item.price} ₽</Text>
-      </View>
-      <TouchableOpacity 
-        style={styles.editButton} 
-        onPress={() => navigation.navigate('EditOffer', { offerId: item.id })}
-      >
-        <Ionicons 
-          name="create-outline"
-          size={24} 
-          color={isDarkMode ? '#FFFFFF' : '#000000'} 
-        />
-      </TouchableOpacity>
+      <Ionicons 
+        name="create-outline"
+        size={24} 
+        color={isDarkMode ? '#FFFFFF' : '#000000'} 
+      />
     </TouchableOpacity>
-  );
+  </TouchableOpacity>
+);
 
   return (
     <SafeAreaView style={[styles.safeArea, isDarkMode && styles.darkContainer]} edges={['top', 'right', 'left']}>

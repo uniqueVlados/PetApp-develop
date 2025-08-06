@@ -119,8 +119,8 @@ class AvatarUpdate(BaseModel):
     avatar_url: str
 
 class ChatCreate(BaseModel):
+    recipient_id: int
     offer_id: int
-    message: str
 
 class Chat(BaseModel):
     id: int

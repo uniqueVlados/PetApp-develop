@@ -1,185 +1,159 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, Image, Dimensions, SafeAreaView } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert, Switch } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useTheme } from '../ThemeContext';
-import { API_URL } from '../config';
 import axios from 'axios';
+import { API_URL } from '../config';
+import { useTheme } from '../ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-
-const { width } = Dimensions.get('window');
 
 export default function OfferDetailsScreen({ route, navigation }) {
   const { offerId } = route.params;
   const [offer, setOffer] = useState(null);
-  const [message, setMessage] = useState('');
-  const [existingChat, setExistingChat] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null);
-  const { isDarkMode } = useTheme();
   const [isCurrentUserOwner, setIsCurrentUserOwner] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const { isDarkMode } = useTheme();
+  const [chatExists, setChatExists] = useState(false);
 
-  const fetchOfferDetails = useCallback(async () => {
+  useEffect(() => {
+    fetchOfferDetails();
+    checkExistingChat();
+  }, []);
+
+  const fetchOfferDetails = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       const userId = await AsyncStorage.getItem('userId');
-      setCurrentUserId(userId);
-      console.log('Fetching offer details for offerId:', offerId);
-
-      const offerResponse = await axios.get(`${API_URL}/offers/${offerId}`, {
+      const response = await axios.get(`${API_URL}/offers/${offerId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('Offer details response:', offerResponse.data);
-      setOffer(offerResponse.data);
-      setIsCurrentUserOwner(offerResponse.data.owner_id === parseInt(userId));
-      setIsFavorite(offerResponse.data.is_favorite);
-
+      setOffer(response.data);
+      setIsCurrentUserOwner(response.data.owner_id.toString() === userId);
+      setIsFavorite(response.data.is_favorite);
     } catch (error) {
       console.error('Error fetching offer details:', error);
-      Alert.alert('Ошибка', 'Не удалось загрузить детали объявления');
+      Alert.alert('Ошибка', 'Не удалось загрузить данные объявления');
     }
-  }, [offerId]);
+  };
 
-  const checkExistingChat = useCallback(async () => {
+  const handleChat = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.post(`${API_URL}/chats/start`, 
+        { recipient_id: offer.owner_id, offer_id: offer.id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      navigation.navigate('Chat', { chatId: response.data.id });
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      Alert.alert('Ошибка', 'Не удалось создать чат');
+    }
+  };
+
+  const checkExistingChat = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
       const response = await axios.get(`${API_URL}/chats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const existingChat = response.data.find(chat => chat.offer_id === offerId);
-      setExistingChat(existingChat);
+      setChatExists(!!existingChat);
     } catch (error) {
       console.error('Error checking existing chat:', error);
     }
-  }, [offerId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchOfferDetails();
-      checkExistingChat();
-    }, [fetchOfferDetails, checkExistingChat])
-  );
+  };
 
   const toggleFavorite = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      const newFavoriteState = !isFavorite;
-      setIsFavorite(newFavoriteState); // Оптимистичное обновление UI
-
-      if (newFavoriteState) {
-        await axios.post(`${API_URL}/favorites/`, { offer_id: offerId }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } else {
+      if (isFavorite) {
         await axios.delete(`${API_URL}/favorites/${offerId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
+      } else {
+        await axios.post(`${API_URL}/favorites/`, { offer_id: offerId }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
       }
-
-      console.log(`Offer ${offerId} favorite status updated to ${newFavoriteState}`);
-      
-      // Обновляем данные с сервера после изменения
-      fetchOfferDetails();
-
+      setIsFavorite(!isFavorite);
     } catch (error) {
       console.error('Error toggling favorite:', error);
-      setIsFavorite(!newFavoriteState); // Откатываем изменение в случае ошибки
       Alert.alert('Ошибка', 'Не удалось изменить статус избранного');
     }
   };
 
-  const startOrOpenChat = async () => {
-    if (existingChat) {
-      navigation.navigate('Chat', { 
-        chatId: existingChat.id,
-        recipientId: offer.owner_id
-      });
-    } else {
-      if (!message.trim()) {
-        Alert.alert('Ошибка', 'Введите сообщение');
-        return;
-      }
-
-      try {
-        const token = await AsyncStorage.getItem('token');
-        const chatData = {
-          message: message,
-          offer_id: offerId
-        };
-        const response = await axios.post(`${API_URL}/chats/start`, chatData, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setExistingChat(response.data);
-        navigation.navigate('Chat', { 
-          chatId: response.data.id,
-          recipientId: offer.owner_id
-        });
-      } catch (error) {
-        console.error('Error starting chat:', error.response?.data || error.message);
-        Alert.alert('Ошибка', error.response?.data?.detail || 'Не удалось начать чат');
-      }
+  const toggleActive = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      await axios.put(`${API_URL}/offers/${offerId}`, 
+        { ...offer, is_active: !offer.is_active },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setOffer({ ...offer, is_active: !offer.is_active });
+    } catch (error) {
+      console.error('Error toggling active status:', error);
+      Alert.alert('Ошибка', 'Не удалось изменить статус активности');
     }
   };
 
-  const handleExit = () => {
+  const handleBack = () => {
     navigation.goBack();
   };
+
+  if (!offer) {
+    return (
+      <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
+        <Text style={[styles.loadingText, isDarkMode && styles.darkText]}>Загрузка...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, isDarkMode && styles.darkContainer]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.exitButton} onPress={handleExit}>
+        <TouchableOpacity onPress={handleBack}>
           <Ionicons name="arrow-back" size={24} color={isDarkMode ? '#FFFFFF' : '#000000'} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, isDarkMode && styles.darkText]}>Детали объявления</Text>
-        <View style={styles.placeholder} />
+        <View style={{ width: 24 }} />
       </View>
-      <ScrollView style={styles.scrollView}>
-        {offer && (
-          <>
-            <Image
-              source={{ uri: offer.image_url }}
-              style={styles.image}
-              resizeMode="cover"
-            />
-            <View style={styles.detailsContainer}>
-              <Text style={[styles.title, isDarkMode && styles.darkText]}>{offer.title}</Text>
-              <Text style={[styles.price, isDarkMode && styles.darkText]}>{offer.price} ₽</Text>
-              <Text style={[styles.description, isDarkMode && styles.darkText]}>{offer.description}</Text>
-              {!isCurrentUserOwner && (
-                <TouchableOpacity style={styles.favoriteButton} onPress={toggleFavorite}>
-                  <Text style={styles.favoriteButtonText}>
-                    {isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {!isCurrentUserOwner && (
-                <View style={styles.messageContainer}>
-                  {!existingChat ? (
-                    <>
-                      <TextInput
-                        style={[styles.input, isDarkMode && styles.darkInput]}
-                        placeholder="Введите сообщение"
-                        placeholderTextColor={isDarkMode ? "#888" : "#666"}
-                        value={message}
-                        onChangeText={setMessage}
-                        multiline
-                      />
-                      <TouchableOpacity style={styles.button} onPress={startOrOpenChat}>
-                        <Text style={styles.buttonText}>Написать сообщение</Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <TouchableOpacity style={styles.button} onPress={startOrOpenChat}>
-                      <Text style={styles.buttonText}>Перейти в чат</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
+      <ScrollView>
+        <Image source={{ uri: offer.image_url || 'https://via.placeholder.com/400' }} style={styles.image} />
+        <View style={styles.content}>
+          <Text style={[styles.title, isDarkMode && styles.darkText]}>{offer.title}</Text>
+          <Text style={[styles.price, isDarkMode && styles.darkText]}>{offer.price} ₽</Text>
+          <Text style={[styles.description, isDarkMode && styles.darkText]}>{offer.description}</Text>
+          <Text style={[styles.location, isDarkMode && styles.darkText]}>Местоположение: {offer.location}</Text>
+          <Text style={[styles.date, isDarkMode && styles.darkText]}>
+            Дата публикации: {new Date(offer.created_at).toLocaleDateString()}
+          </Text>
+          {isCurrentUserOwner && (
+            <View style={styles.switchContainer}>
+              <Text style={[styles.switchLabel, isDarkMode && styles.darkText]}>Активно</Text>
+              <Switch
+                value={offer.is_active}
+                onValueChange={toggleActive}
+                trackColor={{ false: "#767577", true: "#81b0ff" }}
+                thumbColor={offer.is_active ? "#f5dd4b" : "#f4f3f4"}
+              />
             </View>
-          </>
-        )}
+          )}
+        </View>
       </ScrollView>
+      <View style={styles.footer}>
+         {isCurrentUserOwner ? (
+          <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
+            <Text style={styles.buttonText}>Редактировать</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.chatButton} onPress={handleChat}>
+            <Text style={styles.buttonText}>{chatExists ? 'Перейти в чат' : 'Написать продавцу'}</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.favoriteButton} onPress={toggleFavorite}>
+          <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={24} color={isFavorite ? '#FF6B6B' : '#000'} />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -200,29 +174,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#CCCCCC',
   },
-  exitButton: {
-    padding: 5,
-  },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
   },
-  placeholder: {
-    width: 24,
-  },
-  scrollView: {
-    flex: 1,
-  },
   image: {
-    width: width,
-    height: width,
+    width: '100%',
+    height: 300,
     resizeMode: 'cover',
   },
-  detailsContainer: {
-    padding: 15,
+  content: {
+    padding: 20,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
   },
@@ -230,50 +195,68 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#007AFF',
-    marginBottom: 15,
+    marginBottom: 10,
   },
   description: {
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 10,
+  },
+  location: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+  },
+  date: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 10,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#CCCCCC',
+  },
+  editButton: {
+    backgroundColor: '#007AFF',
+    padding: 10,
+    borderRadius: 5,
+    flex: 1,
+    marginRight: 10,
+  },
+  chatButton: {
+    backgroundColor: '#4CD964',
+    padding: 10,
+    borderRadius: 5,
+    flex: 1,
+    marginRight: 10,
   },
   favoriteButton: {
-    backgroundColor: '#007AFF',
-    padding: 10,
-    borderRadius: 5,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
-  },
-  favoriteButtonText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  messageContainer: {
-    marginTop: 10,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    borderRadius: 5,
     padding: 10,
-    marginBottom: 10,
-    backgroundColor: '#F0F0F0',
-  },
-  darkInput: {
-    backgroundColor: '#2C2C2C',
-    color: '#FFFFFF',
-    borderColor: '#444444',
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 5,
-    alignItems: 'center',
   },
   buttonText: {
     color: '#FFFFFF',
+    textAlign: 'center',
     fontWeight: 'bold',
   },
   darkText: {
     color: '#FFFFFF',
+  },
+  loadingText: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginTop: 50,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  switchLabel: {
+    fontSize: 16,
   },
 });

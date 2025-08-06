@@ -15,36 +15,44 @@ export default function CreateOfferScreen({ navigation }) {
   const { isDarkMode } = useTheme();
 
   const handleSubmit = async () => {
-    if (!title || !description || !price || !location) {
-      Alert.alert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
-      return;
-    }
+  if (!title || !description || !price || !location) {
+    Alert.alert('Ошибка', 'Пожалуйста, заполните все обязательные поля');
+    return;
+  }
 
-    try {
-      const token = await AsyncStorage.getItem('token');
-      
-      const offerData = {
-        title,
-        description,
-        price: parseFloat(price),
-        location,
-        image_url: imageUrl
-      };
+  try {
+    const token = await AsyncStorage.getItem('token');
+    
+    const offerData = {
+      title,
+      description,
+      price: parseFloat(price),
+      location,
+      image_url: imageUrl
+    };
 
-      const response = await axios.post(`${API_URL}/offers`, offerData, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      Alert.alert('Успех', 'Объявление успешно создано');
-      navigation.navigate('OfferDetails', { offerId: response.data.id });
-    } catch (error) {
-      console.error('Error creating offer:', error);
-      Alert.alert('Ошибка', 'Не удалось создать объявление');
-    }
-  };
+    const response = await axios.post(`${API_URL}/offers`, offerData, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Закрываем экран создания объявления
+    navigation.goBack();
+
+    // Показываем уведомление об успешном создании
+    Alert.alert('Успех', 'Объявление успешно создано');
+
+    // Обновляем список объявлений на предыдущем экране (если это необходимо)
+    // Это зависит от того, как реализован ваш список объявлений
+    // Например, вы можете использовать событие focus для обновления списка
+
+  } catch (error) {
+    console.error('Error creating offer:', error);
+    Alert.alert('Ошибка', 'Не удалось создать объявление');
+  }
+};
 
   return (
     <SafeAreaView style={[styles.safeArea, isDarkMode && styles.darkContainer]} edges={['top', 'left', 'right']}>

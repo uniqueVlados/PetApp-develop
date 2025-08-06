@@ -24,24 +24,15 @@ async def start_chat(
 
     existing_chat = db.query(models.Chat).filter(
         models.Chat.offer_id == chat_data.offer_id,
-        ((models.Chat.user1_id == current_user.id) & (models.Chat.user2_id == offer.owner_id)) |
-        ((models.Chat.user1_id == offer.owner_id) & (models.Chat.user2_id == current_user.id))
+        ((models.Chat.user1_id == current_user.id) & (models.Chat.user2_id == chat_data.recipient_id)) |
+        ((models.Chat.user1_id == chat_data.recipient_id) & (models.Chat.user2_id == current_user.id))
     ).first()
 
     if existing_chat:
-        new_message = models.Message(content=chat_data.message, sender_id=current_user.id, chat_id=existing_chat.id)
-        db.add(new_message)
-        db.commit()
-        db.refresh(existing_chat)
         return existing_chat
 
-    new_chat = models.Chat(user1_id=current_user.id, user2_id=offer.owner_id, offer_id=chat_data.offer_id)
+    new_chat = models.Chat(user1_id=current_user.id, user2_id=chat_data.recipient_id, offer_id=chat_data.offer_id)
     db.add(new_chat)
-    db.commit()
-    db.refresh(new_chat)
-
-    new_message = models.Message(content=chat_data.message, sender_id=current_user.id, chat_id=new_chat.id)
-    db.add(new_message)
     db.commit()
     db.refresh(new_chat)
 

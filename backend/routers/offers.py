@@ -1,11 +1,13 @@
+from operator import or_
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from database import get_db
 import models, schemas
 from auth_utils import get_current_active_user
 import shutil
 import os
+from sqlalchemy import func
 
 router = APIRouter()
 
@@ -31,6 +33,7 @@ async def read_offers(
     limit: int = 100,
     favorites_only: bool = False,
     exclude_own: bool = False,
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_active_user)
 ):
@@ -39,6 +42,12 @@ async def read_offers(
         query = query.join(models.Favorite).filter(models.Favorite.user_id == current_user.id)
     if exclude_own:
         query = query.filter(models.Offer.owner_id != current_user.id)
+    if search:
+        search_filter = or_(
+            models.Offer.title.ilike(f"%{search}%"),
+            models.Offer.description.ilike(f"%{search}%")
+        )
+        query = query.filter(search_filter)
     
     offers = query.offset(skip).limit(limit).all()
     
@@ -75,8 +84,7 @@ async def read_offer(
     
     return offer
 
-
-@router.put("/{offer_id}", response_model=schemas.OfferOut)
+@router.put("/{offer_id}", response_model=schemas.Offer)
 async def update_offer(
     offer_id: int,
     offer: schemas.OfferUpdate,
@@ -84,7 +92,7 @@ async def update_offer(
     current_user: schemas.User = Depends(get_current_active_user)
 ):
     db_offer = db.query(models.Offer).filter(models.Offer.id == offer_id).first()
-    if db_offer is None:
+    if not db_offer:
         raise HTTPException(status_code=404, detail="Offer not found")
     if db_offer.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to update this offer")
@@ -134,3 +142,24 @@ async def upload_offer_image(
     db.commit()
     
     return {"info": f"File uploaded successfully to {file_location}"}
+
+@router.get("/filters", response_model=dict)
+async def get_available_filters(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_active_user)
+):
+    # Получаем уникальные значения для категорий и местоположений
+    categories = db.query(models.Offer.category).distinct().all()
+    locations = db.query(models.Offer.location).distinct().all()
+    
+    # Получаем минимальную и максимальную цену
+    min_price = db.query(func.min(models.Offer.price)).scalar()
+    max_price = db.query(func.max(models.Offer.price)).scalar()
+
+    available_filters = {
+        "price_range": {"min": min_price or 0, "max": max_price or 0},
+        "categories": [category[0] for category in categories if category[0]],
+        "locations": [location[0] for location in locations if location[0]],
+        "is_active": [True, False]
+    }
+    return available_filters

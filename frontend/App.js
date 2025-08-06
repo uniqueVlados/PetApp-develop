@@ -18,6 +18,8 @@ import ChatScreen from './screens/ChatScreen';
 import MyOffersScreen from './screens/MyOffersScreen';
 import PopularScreen from './screens/PopularScreen';
 import UserProfileScreen from './screens/UserProfileScreen';
+import EditOfferScreen from './screens/EditOfferScreen';
+import FilterScreen from './screens/FilterScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -69,7 +71,9 @@ function AppContent() {
       >
         <Stack.Screen name="Auth" component={AuthScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="Filter" component={FilterScreen} />
         <Stack.Screen name="OfferDetails" component={OfferDetailsScreen} />
+        <Stack.Screen name="EditOffer" component={EditOfferScreen} options={{ title: 'Редактировать объявление' }} />
         <Stack.Screen name="Chat" component={ChatScreen} />
         <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: 'Профиль пользователя' }} />
         <Stack.Screen 
