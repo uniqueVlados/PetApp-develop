@@ -27,12 +27,16 @@ class OfferBase(BaseModel):
 class OfferCreate(OfferBase):
     pass
 
-class OfferOut(OfferBase):
+class OfferOut(BaseModel):
     id: int
+    title: str
+    description: str
+    price: float
+    image_url: Optional[str]
     owner_id: int
-    created_at: datetime
     is_active: bool
-    is_favorite: bool = False
+    created_at: datetime
+    is_favorite: bool
 
     class Config:
         orm_mode = True

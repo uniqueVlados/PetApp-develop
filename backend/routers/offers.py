@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Query
 from sqlalchemy.orm import Session
 from typing import List
@@ -76,25 +75,6 @@ async def read_offer(
     
     return offer
 
-@router.get("/my", response_model=List[schemas.Offer])
-async def get_my_offers(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_active_user)
-):
-    offers = db.query(models.Offer).filter(models.Offer.owner_id == current_user.id).order_by(models.Offer.created_at.desc()).offset(skip).limit(limit).all()
-    return offers
-
-@router.get("/{offer_id}", response_model=schemas.Offer)
-async def get_offer(
-    offer_id: int,
-    db: Session = Depends(get_db)
-):
-    offer = db.query(models.Offer).filter(models.Offer.id == offer_id).first()
-    if offer is None:
-        raise HTTPException(status_code=404, detail="Offer not found")
-    return offer
 
 @router.put("/{offer_id}", response_model=schemas.OfferOut)
 async def update_offer(

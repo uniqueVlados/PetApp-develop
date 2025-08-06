@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,36 +14,65 @@ export default function MyOffersScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('active');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentUserId, setCurrentUserId] = useState(null);
   const { isDarkMode } = useTheme();
 
+  useEffect(() => {
+    const getUserId = async () => {
+      const userId = await AsyncStorage.getItem('userId');
+      setCurrentUserId(userId);
+    };
+    getUserId();
+  }, []);
+
   const fetchOffers = useCallback(async () => {
+    if (!currentUserId) return;
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/offers/my`, {
-        headers: { Authorization: `Bearer ${token}` }
+      if (!token) {
+        console.error('No token found');
+        navigation.navigate('Login');
+        return;
+      }
+
+      const response = await axios.get(`${API_URL}/offers`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { exclude_own: false }
       });
-      setOffers(response.data);
-      filterOffers(response.data, activeFilter, searchQuery);
+
+      console.log('Offers received:', response.data);
+      const myOffers = response.data.filter(offer => offer.owner_id.toString() === currentUserId);
+      setOffers(myOffers);
+      filterOffers(myOffers, activeFilter, searchQuery);
     } catch (error) {
-      console.error('Error fetching offers:', error);
+      console.error('Error fetching offers:', error.response || error);
+      Alert.alert('Ошибка', 'Не удалось загрузить объявления');
+      if (error.response && error.response.status === 401) {
+        await AsyncStorage.removeItem('token');
+        navigation.navigate('Login');
+      }
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, searchQuery]);
+  }, [activeFilter, searchQuery, navigation, currentUserId]);
 
   useFocusEffect(
     useCallback(() => {
-      fetchOffers();
-    }, [fetchOffers])
+      if (currentUserId) {
+        fetchOffers();
+      }
+    }, [fetchOffers, currentUserId])
   );
 
+
   const filterOffers = (offersToFilter, filter, query) => {
-    let result = offersToFilter.filter(offer => {
-      if (filter === 'active') return offer.is_active;
-      if (filter === 'inactive') return !offer.is_active;
-      return true;
-    });
+    let result = offersToFilter;
+    if (filter === 'active') {
+      result = result.filter(offer => offer.is_active);
+    } else if (filter === 'inactive') {
+      result = result.filter(offer => !offer.is_active);
+    }
 
     if (query) {
       result = result.filter(offer =>

@@ -45,3 +45,5 @@ def root():
 
 if __name__ == "__main__":
     uvicorn.run(app, host=API_HOST, port=API_PORT, reload=True)
+
+# uvicorn main:app --host 192.168.31.192 --port 8000 --reload
